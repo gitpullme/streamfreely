@@ -1,0 +1,298 @@
+// Vercel Serverless Function - Main API Handler
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+
+const app = express();
+
+// CORS configuration - allow all origins for streaming
+app.use(cors({
+    origin: true,
+    methods: ['GET', 'HEAD', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Range', 'Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Type']
+}));
+
+// Parse JSON bodies
+app.use(express.json());
+
+// Import services
+const driveService = require('../src/services/driveService');
+const tokenService = require('../src/services/tokenService');
+
+// ============================================
+// API Routes
+// ============================================
+
+/**
+ * POST /api/analyze - Analyze a Google Drive video
+ */
+app.post('/api/analyze', async (req, res) => {
+    try {
+        const { driveUrl } = req.body;
+
+        if (!driveUrl) {
+            return res.status(400).json({
+                error: 'Missing driveUrl parameter',
+                message: 'Please provide a Google Drive URL'
+            });
+        }
+
+        const fileId = driveService.extractFileId(driveUrl);
+
+        if (!fileId) {
+            return res.status(400).json({
+                error: 'Invalid Google Drive URL',
+                message: 'Could not extract file ID from the provided URL'
+            });
+        }
+
+        const fileInfo = await driveService.getFileInfo(fileId);
+
+        if (!fileInfo) {
+            return res.status(404).json({
+                error: 'File not found',
+                message: 'The file could not be found or is not accessible'
+            });
+        }
+
+        if (!fileInfo.mimeType?.startsWith('video/')) {
+            return res.status(400).json({
+                error: 'Not a video file',
+                message: `The file is of type "${fileInfo.mimeType}", not a video`
+            });
+        }
+
+        const qualityInfo = driveService.analyzeVideoQuality(fileInfo);
+
+        res.json({
+            success: true,
+            data: {
+                fileId,
+                name: fileInfo.name,
+                mimeType: fileInfo.mimeType,
+                quality: qualityInfo
+            }
+        });
+
+    } catch (error) {
+        console.error('Error analyzing video:', error);
+        res.status(500).json({
+            error: 'Failed to analyze video',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/generate-link - Generate streamable URL
+ */
+app.post('/api/generate-link', async (req, res) => {
+    try {
+        const { driveUrl, fileId: providedFileId, quality, quick } = req.body;
+
+        let fileId = providedFileId;
+
+        if (!fileId) {
+            if (!driveUrl) {
+                return res.status(400).json({
+                    error: 'Missing driveUrl or fileId parameter',
+                    message: 'Please provide a Google Drive URL or file ID'
+                });
+            }
+            fileId = driveService.extractFileId(driveUrl);
+        }
+
+        if (!fileId) {
+            return res.status(400).json({
+                error: 'Invalid Google Drive URL',
+                message: 'Could not extract file ID from the provided URL'
+            });
+        }
+
+        const fileInfo = await driveService.getFileInfo(fileId);
+
+        if (!fileInfo) {
+            return res.status(404).json({
+                error: 'File not found',
+                message: 'The file could not be found or is not accessible'
+            });
+        }
+
+        if (!fileInfo.mimeType?.startsWith('video/')) {
+            return res.status(400).json({
+                error: 'Not a video file',
+                message: `The file is of type "${fileInfo.mimeType}", not a video`
+            });
+        }
+
+        const selectedQuality = quality || 'original';
+        const token = tokenService.generateToken(fileId, selectedQuality);
+
+        // Get the base URL from Vercel's headers or environment
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const baseUrl = process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : (process.env.BASE_URL || `${protocol}://${host}`);
+
+        const streamUrl = `${baseUrl}/api/stream/${token}.mp4`;
+
+        if (quick) {
+            return res.json({
+                success: true,
+                data: {
+                    streamUrl,
+                    quality: selectedQuality,
+                    name: fileInfo.name
+                }
+            });
+        }
+
+        const qualityInfo = driveService.analyzeVideoQuality(fileInfo);
+        const selectedOption = qualityInfo.qualityOptions.find(q => q.id === selectedQuality)
+            || qualityInfo.qualityOptions[0];
+
+        res.json({
+            success: true,
+            data: {
+                streamUrl,
+                selectedQuality: selectedOption,
+                fileInfo: {
+                    name: fileInfo.name,
+                    size: fileInfo.size,
+                    mimeType: fileInfo.mimeType
+                },
+                quality: qualityInfo
+            }
+        });
+
+    } catch (error) {
+        console.error('Error generating stream link:', error);
+        res.status(500).json({
+            error: 'Failed to generate stream link',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/stream/:token.mp4 - Stream video
+ */
+app.get('/api/stream/:token', async (req, res) => {
+    try {
+        let { token } = req.params;
+
+        // Remove .mp4 extension if present
+        token = token.replace(/\.mp4$/i, '');
+
+        const tokenData = tokenService.decodeToken(token);
+
+        if (!tokenData) {
+            return res.status(400).json({
+                error: 'Invalid or expired token',
+                message: 'The stream link is invalid or has expired'
+            });
+        }
+
+        const { fileId } = tokenData;
+        const fileInfo = await driveService.getFileInfo(fileId);
+
+        if (!fileInfo) {
+            return res.status(404).json({
+                error: 'File not found',
+                message: 'The video file is no longer available'
+            });
+        }
+
+        const fileSize = parseInt(fileInfo.size, 10);
+        const range = req.headers.range;
+
+        // Set common headers
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+
+        let start = 0;
+        let end = fileSize - 1;
+
+        if (range) {
+            const parts = range.replace(/bytes=/, '').split('-');
+            start = parseInt(parts[0], 10);
+            end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+            res.status(206);
+            res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+            res.setHeader('Content-Length', end - start + 1);
+        } else {
+            res.setHeader('Content-Length', fileSize);
+        }
+
+        // Stream from Google Drive
+        const stream = await driveService.streamFile(fileId, start, end);
+        stream.pipe(res);
+
+        stream.on('error', (error) => {
+            console.error('Stream error:', error);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Stream failed' });
+            }
+        });
+
+    } catch (error) {
+        console.error('Stream error:', error);
+        if (!res.headersSent) {
+            res.status(500).json({
+                error: 'Failed to stream video',
+                message: error.message
+            });
+        }
+    }
+});
+
+/**
+ * HEAD /api/stream/:token.mp4 - Handle HEAD requests for video
+ */
+app.head('/api/stream/:token', async (req, res) => {
+    try {
+        let { token } = req.params;
+        token = token.replace(/\.mp4$/i, '');
+
+        const tokenData = tokenService.decodeToken(token);
+        if (!tokenData) {
+            return res.status(400).end();
+        }
+
+        const fileInfo = await driveService.getFileInfo(tokenData.fileId);
+        if (!fileInfo) {
+            return res.status(404).end();
+        }
+
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', fileInfo.size);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.status(200).end();
+
+    } catch (error) {
+        console.error('HEAD request error:', error);
+        res.status(500).end();
+    }
+});
+
+/**
+ * GET /api/health - Health check
+ */
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: process.env.VERCEL ? 'vercel' : 'local'
+    });
+});
+
+// Export for Vercel
+module.exports = app;

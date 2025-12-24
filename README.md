@@ -25,7 +25,7 @@ StreamFreely is a lightweight Node.js proxy that converts public Google Drive vi
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/streamfreely.git
+git clone https://github.com/gitpullme/streamfreely.git
 cd streamfreely
 
 # Install dependencies
@@ -40,8 +40,6 @@ cp .env.example .env
 Edit `.env` with your settings:
 
 ```env
-PORT=3000
-BASE_URL=http://localhost:3000
 GOOGLE_API_KEY=your_google_api_key_here
 STREAM_SECRET=your_random_secret_key
 ```
@@ -55,7 +53,7 @@ STREAM_SECRET=your_random_secret_key
 5. Click **Create Credentials > API Key**
 6. Copy the key to your `.env` file
 
-### Run the Server
+### Run Locally
 
 ```bash
 # Development mode (with hot reload)
@@ -66,6 +64,18 @@ npm start
 ```
 
 Visit `http://localhost:3000` to use the web interface.
+
+## 🌐 Deploy to Vercel (Free)
+
+1. Push this repo to GitHub
+2. Go to [vercel.com](https://vercel.com)
+3. Import your GitHub repository
+4. Add environment variables:
+   - `GOOGLE_API_KEY` - Your Google Drive API key
+   - `STREAM_SECRET` - A random secret string
+5. Deploy!
+
+Your stream URLs will automatically use your Vercel domain.
 
 ## 📖 Usage
 
@@ -82,7 +92,7 @@ Visit `http://localhost:3000` to use the web interface.
 **Generate Stream URL:**
 
 ```bash
-curl -X POST http://localhost:3000/api/generate-link \
+curl -X POST https://your-app.vercel.app/api/generate-link \
   -H "Content-Type: application/json" \
   -d '{"driveUrl": "https://drive.google.com/file/d/FILE_ID/view"}'
 ```
@@ -93,7 +103,7 @@ curl -X POST http://localhost:3000/api/generate-link \
 {
   "success": true,
   "data": {
-    "streamUrl": "http://localhost:3000/stream/TOKEN.mp4",
+    "streamUrl": "https://your-app.vercel.app/api/stream/TOKEN.mp4",
     "fileInfo": {
       "name": "video.mp4",
       "size": "123456789",
@@ -107,7 +117,7 @@ curl -X POST http://localhost:3000/api/generate-link \
 
 ```html
 <video controls width="640" height="360">
-  <source src="http://your-domain.com/stream/TOKEN.mp4" type="video/mp4">
+  <source src="https://your-app.vercel.app/api/stream/TOKEN.mp4" type="video/mp4">
 </video>
 ```
 
@@ -115,50 +125,23 @@ curl -X POST http://localhost:3000/api/generate-link \
 
 ```
 streamfreely/
+├── api/                 # Vercel serverless functions
+│   └── index.js         # Main API handler
 ├── public/              # Frontend files
 │   ├── index.html       # Main HTML page
 │   ├── styles.css       # Styles
 │   └── app.js           # Frontend JavaScript
 ├── src/
-│   ├── server.js        # Express server entry
+│   ├── server.js        # Express server (local dev)
 │   ├── routes/
 │   │   ├── api.js       # API endpoints
 │   │   └── stream.js    # Video streaming routes
 │   └── services/
 │       ├── driveService.js   # Google Drive API
 │       └── tokenService.js   # Token generation
-├── nginx/
-│   └── streamfreely.conf    # Nginx config
+├── vercel.json          # Vercel configuration
 ├── .env.example         # Environment template
 └── package.json
-```
-
-## 🔧 Production Deployment
-
-### With PM2
-
-```bash
-npm install -g pm2
-pm2 start src/server.js --name streamfreely
-pm2 save
-```
-
-### With Nginx
-
-Copy the nginx config:
-
-```bash
-sudo cp nginx/streamfreely.conf /etc/nginx/sites-available/
-sudo ln -s /etc/nginx/sites-available/streamfreely.conf /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### SSL with Certbot
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
 ```
 
 ## ⚠️ Important Notes

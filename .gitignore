@@ -1,11 +1,18 @@
 # Dependencies
 node_modules/
 
+# Environment variables
+.env
+.env.local
+.env.production
 
 # Google credentials
 credentials.json
 *.pem
 *.key
+
+# Vercel
+.vercel/
 
 # Logs
 logs/
