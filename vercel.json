@@ -12,6 +12,15 @@
     ],
     "routes": [
         {
+            "src": "/api/stream/(.*)",
+            "dest": "/api/index.js",
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                "Access-Control-Expose-Headers": "Content-Range, Accept-Ranges, Content-Length"
+            }
+        },
+        {
             "src": "/api/(.*)",
             "dest": "/api/index.js"
         },
