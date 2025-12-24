@@ -274,11 +274,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const enableBuffer = document.getElementById('enableBuffer').checked;
         const enableProxy = document.getElementById('enableProxy').checked;
+        const directMode = document.getElementById('directMode').checked;
 
         setLoading(universalGenerateBtn, true);
         hideUniversalError();
 
         try {
+            // Direct Mode - bypass proxy completely, play directly in browser
+            if (directMode) {
+                const detected = detectStreamType(streamUrl);
+                displayUniversalResult({
+                    proxyUrl: streamUrl, // Use original URL directly
+                    streamType: detected.type,
+                    buffering: enableBuffer,
+                    proxied: false,
+                    directMode: true,
+                    originalUrl: streamUrl
+                }, streamUrl);
+
+                // Transition to result
+                universalStep1.classList.add('hidden');
+                universalResultSection.classList.remove('hidden');
+                return;
+            }
+
+            // Proxy Mode - generate proxy URL through API
             const response = await fetch('/api/universal/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -302,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
             universalResultSection.classList.remove('hidden');
 
         } catch (error) {
-            showUniversalError(error.message);
+            showUniversalError(error.message + '\n\n💡 Tip: If blocked by Cloudflare, try enabling "Direct Mode" to bypass the proxy.');
         } finally {
             setLoading(universalGenerateBtn, false);
         }
@@ -310,31 +330,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Display universal stream result
     function displayUniversalResult(data, originalUrl) {
-        const { proxyUrl, streamType, buffering } = data;
+        const { proxyUrl, streamType, buffering, directMode } = data;
         const detected = detectStreamType(originalUrl);
 
         // Update stats
         document.getElementById('bufferStatus').textContent = buffering ? 'Active' : 'Disabled';
         document.getElementById('detectedType').textContent = streamType || detected.type;
-        document.getElementById('proxyStatus').textContent = data.proxied ? 'Active' : 'Direct';
+        document.getElementById('proxyStatus').textContent = directMode ? '🔓 Direct' : (data.proxied ? 'Active' : 'Disabled');
 
         // Update stream type info
+        const modeLabel = directMode ? '🔓 Direct playback (no proxy)' : (buffering ? 'Enhanced buffering' : 'Standard playback');
         document.getElementById('universalStreamType').textContent =
-            `${detected.icon} ${detected.type} stream • ${buffering ? 'Enhanced buffering' : 'Standard playback'}`;
+            `${detected.icon} ${detected.type} stream • ${modeLabel}`;
 
         // Set the URL
         document.getElementById('universalStreamUrl').value = proxyUrl;
 
         // Setup video player based on stream type
-        setupUniversalPlayer(proxyUrl, detected.type, originalUrl);
+        setupUniversalPlayer(proxyUrl, detected.type, originalUrl, directMode);
 
         // Embed code
-        const embedCode = generateEmbedCode(proxyUrl, detected.type);
+        const embedCode = generateEmbedCode(proxyUrl, detected.type, directMode);
         document.getElementById('universalEmbedCode').textContent = embedCode;
     }
 
     // Setup universal video player with HLS.js support
-    function setupUniversalPlayer(proxyUrl, streamType, originalUrl) {
+    function setupUniversalPlayer(proxyUrl, streamType, originalUrl, directMode = false) {
         // Cleanup previous HLS instance
         if (hlsInstance) {
             hlsInstance.destroy();
@@ -415,9 +436,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Generate embed code based on stream type
-    function generateEmbedCode(proxyUrl, streamType) {
+    function generateEmbedCode(proxyUrl, streamType, directMode = false) {
+        const note = directMode ? '<!-- NOTE: This uses the original URL directly. May not work on all sites due to CORS. -->\n' : '';
         if (streamType === 'HLS') {
-            return `<!-- Include HLS.js for best compatibility -->
+            return `${note}<!-- Include HLS.js for best compatibility -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 <video id="video" controls width="640" height="360"></video>
 <script>
@@ -431,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 </script>`;
         } else {
-            return `<video controls width="640" height="360">
+            return `${note}<video controls width="640" height="360">
   <source src="${proxyUrl}" type="video/${streamType.toLowerCase()}">
 </video>`;
         }

@@ -1129,3 +1129,23 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Direct Mode Option Styling */
+.option-label.direct-mode {
+  color: #fbbf24;
+}
+
+.option-label.direct-mode span:last-child {
+  font-weight: 600;
+}
+
+.option-group:has(.direct-mode) {
+  padding-top: var(--space-sm);
+  margin-top: var(--space-sm);
+  border-top: 1px dashed rgba(251, 191, 36, 0.3);
+}
+
+.option-group:has(.direct-mode) .option-hint {
+  color: #fbbf24;
+  opacity: 0.8;
+}
