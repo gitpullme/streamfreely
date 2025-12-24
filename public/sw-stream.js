@@ -30,14 +30,20 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(clients.claim()); // Take control immediately
 });
 
-// Fetch event - intercept ALL requests
+// Fetch event - intercept requests SMARTLY
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Check if this is a stream-related request
-    if (isStreamRequest(url)) {
+    // IMPORTANT: Only intercept SAME-ORIGIN requests
+    // Cross-origin streams (like web24code.site) work with native browser
+    // but NOT with SW fetch (they block it like they block HLS.js)
+    const isSameOrigin = url.origin === self.location.origin;
+
+    // Check if this is a stream-related request from our own origin
+    if (isSameOrigin && isStreamRequest(url)) {
         event.respondWith(handleStreamRequest(event.request, url));
     }
+    // For cross-origin: DON'T intercept - let native browser handle it!
 });
 
 // Check if this is a stream segment or playlist

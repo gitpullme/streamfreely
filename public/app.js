@@ -558,13 +558,22 @@ document.addEventListener('DOMContentLoaded', () => {
             universalVideoPlayer.addEventListener('loadedmetadata', () => {
                 console.log('✅ Native playback working!');
                 bufferIndicator.classList.add('hidden');
-                document.getElementById('bufferStatus').textContent = 'Native + SW Caching';
+
+                // Check if it's a cross-origin stream
+                const isCrossOrigin = !streamUrl.startsWith(window.location.origin);
+
+                if (isCrossOrigin) {
+                    // Cross-origin: SW can't help, but native works!
+                    document.getElementById('bufferStatus').textContent = 'Native playback';
+                    updateSWStatus('N/A (cross-origin)', '#94a3b8');
+                } else {
+                    // Same-origin: SW can cache
+                    document.getElementById('bufferStatus').textContent = 'Native + SW Cache';
+                    requestPrefetch(streamUrl);
+                }
+
                 universalVideoPlayer.play().catch(() => { });
                 startBufferMonitoring();
-
-                // 🚀 AGGRESSIVE MODE: Tell Service Worker to pre-fetch segments!
-                requestPrefetch(streamUrl);
-                console.log('📡 SW will pre-cache segments in background');
             }, { once: true });
 
             universalVideoPlayer.addEventListener('error', (e) => {
