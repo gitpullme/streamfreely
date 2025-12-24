@@ -31,13 +31,33 @@
     <section class="hero">
       <div class="hero-content">
         <div class="badge"><span class="badge-dot"></span>Open Source Video Streaming</div>
-        <h1 class="hero-title">Transform Google Drive Links into <span class="gradient-text">Streamable Videos</span>
+        <h1 class="hero-title">Transform Any Link into <span class="gradient-text">Smooth Streams</span>
         </h1>
-        <p class="hero-subtitle">Convert any public Google Drive video into a clean, embeddable MP4 URL with quality
-          selection.</p>
+        <p class="hero-subtitle">Convert Google Drive videos or any streaming link into stable, embeddable URLs with
+          buffer-free playback.</p>
 
-        <div class="generator-card" id="generator">
-          <h2 class="card-title">Generate Stream Link</h2>
+        <!-- Module Selector Tabs -->
+        <div class="module-tabs">
+          <button class="module-tab active" data-module="drive">
+            <span class="tab-icon">📁</span>
+            <span class="tab-label">Google Drive</span>
+          </button>
+          <button class="module-tab" data-module="universal">
+            <span class="tab-icon">🌐</span>
+            <span class="tab-label">Universal Stream</span>
+          </button>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- MODULE 1: Google Drive -->
+        <!-- ========================================== -->
+        <div class="generator-card module-content" id="driveModule">
+          <h2 class="card-title">
+            <span class="title-icon">📁</span>
+            Google Drive Stream
+          </h2>
+          <p class="card-description">Convert public Google Drive videos into streamable MP4 URLs with quality
+            selection.</p>
 
           <!-- Step 1: URL Input -->
           <div id="step1" class="step-section">
@@ -137,6 +157,113 @@
             <p id="errorMessage" class="error-message"></p>
           </div>
         </div>
+
+        <!-- ========================================== -->
+        <!-- MODULE 2: Universal Stream -->
+        <!-- ========================================== -->
+        <div class="generator-card module-content hidden" id="universalModule">
+          <h2 class="card-title">
+            <span class="title-icon">🌐</span>
+            Universal Stream
+          </h2>
+          <p class="card-description">Stream any video link (HLS, DASH, MP4, etc.) with enhanced buffering for smooth,
+            uninterrupted playback.</p>
+
+          <!-- Universal Input Section -->
+          <div id="universalStep1" class="step-section">
+            <form id="universalForm" class="generator-form">
+              <div class="input-group">
+                <label for="universalUrl" class="input-label">Video Stream URL</label>
+                <input type="url" id="universalUrl" name="universalUrl"
+                  placeholder="https://example.com/video.m3u8 or any streaming link" required>
+                <span class="input-hint">Supports: HLS (.m3u8), DASH (.mpd), MP4, WebM, and more</span>
+              </div>
+
+              <div class="stream-options">
+                <div class="option-group">
+                  <label class="option-label">
+                    <input type="checkbox" id="enableBuffer" checked>
+                    <span class="checkmark"></span>
+                    <span>Enhanced Buffering</span>
+                  </label>
+                  <span class="option-hint">Pre-fetch segments for smoother playback</span>
+                </div>
+                <div class="option-group">
+                  <label class="option-label">
+                    <input type="checkbox" id="enableProxy" checked>
+                    <span class="checkmark"></span>
+                    <span>Proxy Streaming</span>
+                  </label>
+                  <span class="option-hint">Route through our servers for stability</span>
+                </div>
+              </div>
+
+              <button type="submit" id="universalGenerateBtn" class="btn-generate">
+                <span class="btn-text">Generate Stream Link</span>
+                <span class="btn-loader"></span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Universal Result Section -->
+          <div id="universalResultSection" class="result-section hidden">
+            <div class="result-header">
+              <div class="success-icon">✓</div>
+              <div>
+                <h3>Proxy Stream Ready!</h3>
+                <p id="universalStreamType" class="result-quality">Enhanced buffering enabled</p>
+              </div>
+            </div>
+
+            <div class="stream-stats">
+              <div class="stat-item">
+                <span class="stat-icon">🔄</span>
+                <span class="stat-label">Buffer Status</span>
+                <span id="bufferStatus" class="stat-value">Ready</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-icon">📊</span>
+                <span class="stat-label">Stream Type</span>
+                <span id="detectedType" class="stat-value">--</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-icon">⚡</span>
+                <span class="stat-label">Proxy</span>
+                <span id="proxyStatus" class="stat-value">Active</span>
+              </div>
+            </div>
+
+            <div class="url-display">
+              <input type="text" id="universalStreamUrl" readonly class="url-input">
+              <button id="universalCopyBtn" class="btn-copy">Copy</button>
+            </div>
+
+            <div class="video-preview">
+              <h4>Preview</h4>
+              <div class="player-container">
+                <video id="universalVideoPlayer" controls preload="auto"></video>
+                <div id="bufferIndicator" class="buffer-indicator hidden">
+                  <div class="buffer-spinner"></div>
+                  <span>Buffering...</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="embed-section">
+              <h4>Embed Code</h4>
+              <pre id="universalEmbedCode"></pre>
+              <button id="universalCopyEmbedBtn" class="btn-copy-embed">Copy Embed</button>
+            </div>
+
+            <button id="universalNewBtn" class="btn-secondary">Stream Another Link</button>
+          </div>
+
+          <!-- Universal Error Section -->
+          <div id="universalErrorSection" class="error-section hidden">
+            <p id="universalErrorMessage" class="error-message"></p>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -145,16 +272,20 @@
         <h2 class="section-title">Features</h2>
         <div class="features-grid">
           <div class="feature-card">
-            <h3>🎬 Quality Detection</h3>
-            <p>Automatically detect resolution, bitrate, and codec.</p>
+            <h3>📁 Google Drive Support</h3>
+            <p>Stream videos directly from public Google Drive links with quality selection.</p>
           </div>
           <div class="feature-card">
-            <h3>📊 Quality Selection</h3>
-            <p>Choose your preferred streaming quality.</p>
+            <h3>🌐 Universal Streaming</h3>
+            <p>Support for HLS, DASH, MP4, WebM, and virtually any streaming format.</p>
           </div>
           <div class="feature-card">
-            <h3>⚡ Instant Playback</h3>
-            <p>Videos start immediately with native browser support.</p>
+            <h3>⚡ Enhanced Buffering</h3>
+            <p>Pre-fetch segments for smooth, uninterrupted playback.</p>
+          </div>
+          <div class="feature-card">
+            <h3>🔄 Proxy Streaming</h3>
+            <p>Route streams through our servers for stability and CORS-free playback.</p>
           </div>
           <div class="feature-card">
             <h3>🎯 Seamless Seeking</h3>
@@ -162,11 +293,15 @@
           </div>
           <div class="feature-card">
             <h3>📱 Easy Embedding</h3>
-            <p>Standard HTML5 video tags work everywhere.</p>
+            <p>Get embed codes for any stream format with HLS.js included.</p>
+          </div>
+          <div class="feature-card">
+            <h3>🎬 Quality Detection</h3>
+            <p>Automatically detect resolution, bitrate, and codec for Drive videos.</p>
           </div>
           <div class="feature-card">
             <h3>🔒 Secure Tokens</h3>
-            <p>Time-limited tokens for added security.</p>
+            <p>Time-limited tokens for added security on all stream URLs.</p>
           </div>
         </div>
       </div>
@@ -175,26 +310,56 @@
     <section class="how-it-works" id="how-it-works">
       <div class="container">
         <h2 class="section-title">How It Works</h2>
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <h3>Paste Link</h3>
-            <p>Enter your Drive URL</p>
+
+        <div class="workflow-tabs">
+          <h3 class="workflow-title">📁 Google Drive</h3>
+          <div class="steps">
+            <div class="step">
+              <div class="step-number">1</div>
+              <h3>Paste Link</h3>
+              <p>Enter your Drive URL</p>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <h3>Analyze</h3>
+              <p>We detect video quality</p>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <h3>Select Quality</h3>
+              <p>Choose your preference</p>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <h3>Stream</h3>
+              <p>Get your MP4 URL</p>
+            </div>
           </div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <h3>Analyze</h3>
-            <p>We detect video quality</p>
-          </div>
-          <div class="step">
-            <div class="step-number">3</div>
-            <h3>Select Quality</h3>
-            <p>Choose your preference</p>
-          </div>
-          <div class="step">
-            <div class="step-number">4</div>
-            <h3>Stream</h3>
-            <p>Get your .mp4 URL</p>
+        </div>
+
+        <div class="workflow-tabs" style="margin-top: 2rem;">
+          <h3 class="workflow-title">🌐 Universal Stream</h3>
+          <div class="steps">
+            <div class="step">
+              <div class="step-number">1</div>
+              <h3>Paste Any Link</h3>
+              <p>HLS, DASH, MP4, etc.</p>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <h3>Configure</h3>
+              <p>Enable buffering & proxy</p>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <h3>Generate</h3>
+              <p>Get your proxy URL</p>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <h3>Play</h3>
+              <p>Smooth, stable streaming</p>
+            </div>
           </div>
         </div>
       </div>
@@ -205,6 +370,8 @@
     <p>© 2024 StreamFreely. Built with ❤️ for the open web.</p>
   </footer>
 
+  <!-- HLS.js for m3u8 stream support -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="app.js"></script>
 </body>
 

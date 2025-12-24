@@ -1,10 +1,12 @@
 /**
  * StreamFreely - Frontend JavaScript
- * Handles video analysis, quality selection, and stream link generation
+ * Handles video analysis, quality selection, stream link generation, and universal streaming
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM Elements
+    // ==========================================
+    // DOM Elements - Google Drive Module
+    // ==========================================
     const analyzeForm = document.getElementById('analyzeForm');
     const analyzeBtn = document.getElementById('analyzeBtn');
     const generateBtn = document.getElementById('generateBtn');
@@ -14,11 +16,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorSection = document.getElementById('errorSection');
     const qualityOptionsContainer = document.getElementById('qualityOptions');
 
+    // ==========================================
+    // DOM Elements - Module Tabs
+    // ==========================================
+    const moduleTabs = document.querySelectorAll('.module-tab');
+    const driveModule = document.getElementById('driveModule');
+    const universalModule = document.getElementById('universalModule');
+
+    // ==========================================
+    // DOM Elements - Universal Stream Module
+    // ==========================================
+    const universalForm = document.getElementById('universalForm');
+    const universalGenerateBtn = document.getElementById('universalGenerateBtn');
+    const universalStep1 = document.getElementById('universalStep1');
+    const universalResultSection = document.getElementById('universalResultSection');
+    const universalErrorSection = document.getElementById('universalErrorSection');
+    const universalVideoPlayer = document.getElementById('universalVideoPlayer');
+    const bufferIndicator = document.getElementById('bufferIndicator');
+
+    // ==========================================
     // State
+    // ==========================================
     let currentVideoData = null;
     let selectedQuality = 'original';
+    let hlsInstance = null;
 
-    // Step 1: Analyze video
+    // ==========================================
+    // Module Tab Switching
+    // ==========================================
+    moduleTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const moduleId = tab.dataset.module;
+
+            // Update active tab
+            moduleTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Show/hide modules
+            if (moduleId === 'drive') {
+                driveModule.classList.remove('hidden');
+                universalModule.classList.add('hidden');
+            } else {
+                driveModule.classList.add('hidden');
+                universalModule.classList.remove('hidden');
+            }
+        });
+    });
+
+    // ==========================================
+    // GOOGLE DRIVE MODULE - Step 1: Analyze video
+    // ==========================================
     analyzeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -196,7 +243,240 @@ document.addEventListener('DOMContentLoaded', () => {
         await copyToClipboard(embedCode, document.getElementById('copyEmbedBtn'));
     });
 
-    // Helper: Copy to clipboard
+    // ==========================================
+    // UNIVERSAL STREAM MODULE
+    // ==========================================
+
+    // Detect stream type from URL
+    function detectStreamType(url) {
+        const urlLower = url.toLowerCase();
+        if (urlLower.includes('.m3u8') || urlLower.includes('hls')) {
+            return { type: 'HLS', extension: 'm3u8', icon: '📺' };
+        } else if (urlLower.includes('.mpd') || urlLower.includes('dash')) {
+            return { type: 'DASH', extension: 'mpd', icon: '📡' };
+        } else if (urlLower.includes('.mp4')) {
+            return { type: 'MP4', extension: 'mp4', icon: '🎬' };
+        } else if (urlLower.includes('.webm')) {
+            return { type: 'WebM', extension: 'webm', icon: '🎥' };
+        } else if (urlLower.includes('.mkv')) {
+            return { type: 'MKV', extension: 'mkv', icon: '🎞️' };
+        } else {
+            return { type: 'Universal', extension: 'stream', icon: '🌐' };
+        }
+    }
+
+    // Universal Stream form submission
+    universalForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const streamUrl = document.getElementById('universalUrl').value.trim();
+        if (!streamUrl) return;
+
+        const enableBuffer = document.getElementById('enableBuffer').checked;
+        const enableProxy = document.getElementById('enableProxy').checked;
+
+        setLoading(universalGenerateBtn, true);
+        hideUniversalError();
+
+        try {
+            const response = await fetch('/api/universal/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sourceUrl: streamUrl,
+                    enableBuffer,
+                    enableProxy
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Failed to generate stream');
+            }
+
+            displayUniversalResult(data.data, streamUrl);
+
+            // Transition to result
+            universalStep1.classList.add('hidden');
+            universalResultSection.classList.remove('hidden');
+
+        } catch (error) {
+            showUniversalError(error.message);
+        } finally {
+            setLoading(universalGenerateBtn, false);
+        }
+    });
+
+    // Display universal stream result
+    function displayUniversalResult(data, originalUrl) {
+        const { proxyUrl, streamType, buffering } = data;
+        const detected = detectStreamType(originalUrl);
+
+        // Update stats
+        document.getElementById('bufferStatus').textContent = buffering ? 'Active' : 'Disabled';
+        document.getElementById('detectedType').textContent = streamType || detected.type;
+        document.getElementById('proxyStatus').textContent = data.proxied ? 'Active' : 'Direct';
+
+        // Update stream type info
+        document.getElementById('universalStreamType').textContent =
+            `${detected.icon} ${detected.type} stream • ${buffering ? 'Enhanced buffering' : 'Standard playback'}`;
+
+        // Set the URL
+        document.getElementById('universalStreamUrl').value = proxyUrl;
+
+        // Setup video player based on stream type
+        setupUniversalPlayer(proxyUrl, detected.type, originalUrl);
+
+        // Embed code
+        const embedCode = generateEmbedCode(proxyUrl, detected.type);
+        document.getElementById('universalEmbedCode').textContent = embedCode;
+    }
+
+    // Setup universal video player with HLS.js support
+    function setupUniversalPlayer(proxyUrl, streamType, originalUrl) {
+        // Cleanup previous HLS instance
+        if (hlsInstance) {
+            hlsInstance.destroy();
+            hlsInstance = null;
+        }
+
+        // Show buffer indicator
+        bufferIndicator.classList.remove('hidden');
+
+        if (streamType === 'HLS') {
+            // Use HLS.js for m3u8 streams
+            if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                hlsInstance = new Hls({
+                    enableWorker: true,
+                    maxBufferLength: 60,
+                    maxMaxBufferLength: 120,
+                    maxBufferSize: 60 * 1000 * 1000, // 60MB
+                    maxBufferHole: 0.5,
+                    lowLatencyMode: false,
+                    backBufferLength: 90
+                });
+
+                hlsInstance.loadSource(proxyUrl);
+                hlsInstance.attachMedia(universalVideoPlayer);
+
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                    bufferIndicator.classList.add('hidden');
+                    universalVideoPlayer.play().catch(() => { });
+                });
+
+                hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        console.error('HLS fatal error:', data);
+                        // Try direct playback as fallback
+                        universalVideoPlayer.src = proxyUrl;
+                    }
+                });
+
+                // Buffer monitoring
+                hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
+                    document.getElementById('bufferStatus').textContent = 'Buffered';
+                });
+
+            } else if (universalVideoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (Safari)
+                universalVideoPlayer.src = proxyUrl;
+                universalVideoPlayer.addEventListener('loadedmetadata', () => {
+                    bufferIndicator.classList.add('hidden');
+                    universalVideoPlayer.play().catch(() => { });
+                });
+            } else {
+                // Fallback to direct URL
+                universalVideoPlayer.src = proxyUrl;
+            }
+        } else {
+            // Direct playback for MP4, WebM, etc.
+            universalVideoPlayer.src = proxyUrl;
+            universalVideoPlayer.addEventListener('canplay', () => {
+                bufferIndicator.classList.add('hidden');
+            }, { once: true });
+        }
+
+        // Buffer state monitoring
+        universalVideoPlayer.addEventListener('waiting', () => {
+            bufferIndicator.classList.remove('hidden');
+            document.getElementById('bufferStatus').textContent = 'Buffering...';
+        });
+
+        universalVideoPlayer.addEventListener('playing', () => {
+            bufferIndicator.classList.add('hidden');
+            document.getElementById('bufferStatus').textContent = 'Playing';
+        });
+
+        universalVideoPlayer.addEventListener('error', (e) => {
+            bufferIndicator.classList.add('hidden');
+            console.error('Video error:', e);
+        });
+    }
+
+    // Generate embed code based on stream type
+    function generateEmbedCode(proxyUrl, streamType) {
+        if (streamType === 'HLS') {
+            return `<!-- Include HLS.js for best compatibility -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<video id="video" controls width="640" height="360"></video>
+<script>
+  var video = document.getElementById('video');
+  if (Hls.isSupported()) {
+    var hls = new Hls();
+    hls.loadSource('${proxyUrl}');
+    hls.attachMedia(video);
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = '${proxyUrl}';
+  }
+</script>`;
+        } else {
+            return `<video controls width="640" height="360">
+  <source src="${proxyUrl}" type="video/${streamType.toLowerCase()}">
+</video>`;
+        }
+    }
+
+    // Universal copy buttons
+    document.getElementById('universalCopyBtn').addEventListener('click', async () => {
+        const urlInput = document.getElementById('universalStreamUrl');
+        await copyToClipboard(urlInput.value, document.getElementById('universalCopyBtn'));
+    });
+
+    document.getElementById('universalCopyEmbedBtn').addEventListener('click', async () => {
+        const embedCode = document.getElementById('universalEmbedCode').textContent;
+        await copyToClipboard(embedCode, document.getElementById('universalCopyEmbedBtn'));
+    });
+
+    // New stream button
+    document.getElementById('universalNewBtn').addEventListener('click', () => {
+        universalResultSection.classList.add('hidden');
+        universalStep1.classList.remove('hidden');
+        document.getElementById('universalUrl').value = '';
+
+        // Cleanup
+        if (hlsInstance) {
+            hlsInstance.destroy();
+            hlsInstance = null;
+        }
+        universalVideoPlayer.src = '';
+    });
+
+    // Universal error helpers
+    function showUniversalError(message) {
+        document.getElementById('universalErrorMessage').textContent = message;
+        universalErrorSection.classList.remove('hidden');
+    }
+
+    function hideUniversalError() {
+        universalErrorSection.classList.add('hidden');
+    }
+
+    // ==========================================
+    // Helper Functions
+    // ==========================================
+
+    // Copy to clipboard
     async function copyToClipboard(text, button) {
         try {
             await navigator.clipboard.writeText(text);
@@ -208,19 +488,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Helper: Set loading state
+    // Set loading state
     function setLoading(button, isLoading) {
         button.classList.toggle('loading', isLoading);
         button.disabled = isLoading;
     }
 
-    // Helper: Show error
+    // Show error
     function showError(message) {
         document.getElementById('errorMessage').textContent = message;
         errorSection.classList.remove('hidden');
     }
 
-    // Helper: Hide error
+    // Hide error
     function hideError() {
         errorSection.classList.add('hidden');
     }

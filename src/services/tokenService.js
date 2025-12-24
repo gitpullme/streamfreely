@@ -185,6 +185,99 @@ class TokenService {
             }
         }
     }
+
+    // ============================================
+    // Universal Stream Token Methods
+    // ============================================
+
+    /**
+     * Generate a token for universal streams
+     * Encodes the source URL and options into a secure token
+     */
+    generateUniversalToken(sourceUrl, options = {}) {
+        const now = Date.now();
+        const expiryHours = Math.floor((now + this.tokenExpiry) / 3600000);
+
+        // Create payload
+        const payload = {
+            u: sourceUrl,  // URL
+            o: options,    // Options
+            e: expiryHours // Expiry
+        };
+
+        // Encode payload to base64url
+        const payloadStr = JSON.stringify(payload);
+        const payloadB64 = Buffer.from(payloadStr).toString('base64url');
+
+        // Create signature
+        const sigData = `${payloadB64}:${this.secret}`;
+        const signature = crypto.createHash('sha256').update(sigData).digest('hex').substring(0, 8);
+
+        // Token format: payload.signature
+        const token = `${payloadB64}.${signature}`;
+
+        // Cache for faster lookups
+        this.tokenCache.set(token, { sourceUrl, options, timestamp: now });
+
+        return token;
+    }
+
+    /**
+     * Decode and validate universal stream token
+     */
+    decodeUniversalToken(token) {
+        try {
+            // Check cache first
+            if (this.tokenCache.has(token)) {
+                const cached = this.tokenCache.get(token);
+                if (Date.now() - cached.timestamp < this.tokenExpiry) {
+                    return { sourceUrl: cached.sourceUrl, options: cached.options };
+                }
+                this.tokenCache.delete(token);
+            }
+
+            // Parse token: payload.signature
+            const dotIndex = token.lastIndexOf('.');
+            if (dotIndex === -1) {
+                console.warn('Invalid universal token format');
+                return null;
+            }
+
+            const payloadB64 = token.substring(0, dotIndex);
+            const providedSig = token.substring(dotIndex + 1);
+
+            // Verify signature
+            const sigData = `${payloadB64}:${this.secret}`;
+            const expectedSig = crypto.createHash('sha256').update(sigData).digest('hex').substring(0, 8);
+
+            if (providedSig !== expectedSig) {
+                console.warn('Invalid universal token signature');
+                return null;
+            }
+
+            // Decode payload
+            const payloadStr = Buffer.from(payloadB64, 'base64url').toString('utf8');
+            const payload = JSON.parse(payloadStr);
+
+            // Check expiry
+            const currentHours = Math.floor(Date.now() / 3600000);
+            if (currentHours > payload.e) {
+                console.warn('Universal token expired');
+                return null;
+            }
+
+            const result = { sourceUrl: payload.u, options: payload.o || {} };
+
+            // Cache for future lookups
+            this.tokenCache.set(token, { sourceUrl: payload.u, options: payload.o, timestamp: Date.now() });
+
+            return result;
+
+        } catch (error) {
+            console.error('Error decoding universal token:', error.message);
+            return null;
+        }
+    }
 }
 
 module.exports = new TokenService();
