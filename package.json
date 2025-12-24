@@ -1,0 +1,32 @@
+{
+    "name": "streamfreely",
+    "version": "1.0.0",
+    "description": "Google Drive video streaming proxy - Transform Drive links into streamable MP4 URLs",
+    "main": "src/server.js",
+    "scripts": {
+        "start": "node src/server.js",
+        "dev": "nodemon src/server.js",
+        "test": "echo \"No tests yet\" && exit 0"
+    },
+    "keywords": [
+        "google-drive",
+        "video-streaming",
+        "proxy",
+        "mp4",
+        "range-requests"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "googleapis": "^128.0.0",
+        "helmet": "^7.1.0",
+        "morgan": "^1.10.0",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}

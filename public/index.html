@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StreamFreely - Convert Google Drive video links into streamable MP4 URLs">
+  <title>StreamFreely | Video Streaming Proxy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+
+  <header class="header">
+    <nav class="navbar">
+      <div class="logo">
+        <span class="logo-text">Stream<span class="highlight">Freely</span></span>
+      </div>
+      <div class="nav-links">
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <div class="badge"><span class="badge-dot"></span>Open Source Video Streaming</div>
+        <h1 class="hero-title">Transform Google Drive Links into <span class="gradient-text">Streamable Videos</span>
+        </h1>
+        <p class="hero-subtitle">Convert any public Google Drive video into a clean, embeddable MP4 URL with quality
+          selection.</p>
+
+        <div class="generator-card" id="generator">
+          <h2 class="card-title">Generate Stream Link</h2>
+
+          <!-- Step 1: URL Input -->
+          <div id="step1" class="step-section">
+            <form id="analyzeForm" class="generator-form">
+              <div class="input-group">
+                <label for="driveUrl" class="input-label">Google Drive Video URL</label>
+                <input type="url" id="driveUrl" name="driveUrl" placeholder="https://drive.google.com/file/d/xxxxx/view"
+                  required>
+                <span class="input-hint">Paste any Google Drive video link</span>
+              </div>
+              <button type="submit" id="analyzeBtn" class="btn-generate">
+                <span class="btn-text">Analyze Video</span>
+                <span class="btn-loader"></span>
+              </button>
+            </form>
+          </div>
+
+          <!-- Step 2: Quality Selection -->
+          <div id="step2" class="step-section hidden">
+            <div class="quality-info-card">
+              <div class="quality-header">
+                <div class="video-info">
+                  <h3 id="videoName" class="video-name"></h3>
+                  <div class="video-meta">
+                    <span id="videoDuration" class="meta-item"></span>
+                    <span id="videoSize" class="meta-item"></span>
+                    <span id="videoCodec" class="meta-item"></span>
+                  </div>
+                </div>
+                <button id="changeVideoBtn" class="btn-change">Change Video</button>
+              </div>
+
+              <div class="source-quality">
+                <div class="quality-badge">
+                  <span class="quality-label">Source Quality</span>
+                  <span id="sourceResolution" class="quality-value"></span>
+                </div>
+                <div class="quality-details">
+                  <div class="detail-item">
+                    <span class="detail-label">Resolution</span>
+                    <span id="sourcePixels" class="detail-value"></span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Bitrate</span>
+                    <span id="sourceBitrate" class="detail-value"></span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Quality</span>
+                    <span id="bitrateQuality" class="detail-value"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="quality-selector">
+                <h4 class="selector-title">Select Stream Quality</h4>
+                <div id="qualityOptions" class="quality-options"></div>
+              </div>
+
+              <button id="generateBtn" class="btn-generate">
+                <span class="btn-text">Generate Stream URL</span>
+                <span class="btn-loader"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 3: Result -->
+          <div id="resultSection" class="result-section hidden">
+            <div class="result-header">
+              <div class="success-icon">✓</div>
+              <div>
+                <h3>Stream URL Generated!</h3>
+                <p id="selectedQualityInfo" class="result-quality"></p>
+              </div>
+            </div>
+
+            <div class="url-display">
+              <input type="text" id="streamUrl" readonly class="url-input">
+              <button id="copyBtn" class="btn-copy">Copy</button>
+            </div>
+
+            <div class="video-preview">
+              <h4>Preview</h4>
+              <video id="videoPlayer" controls preload="metadata"></video>
+            </div>
+
+            <div class="embed-section">
+              <h4>Embed Code</h4>
+              <pre id="embedCode"></pre>
+              <button id="copyEmbedBtn" class="btn-copy-embed">Copy Embed</button>
+            </div>
+
+            <button id="newVideoBtn" class="btn-secondary">Generate Another Link</button>
+          </div>
+
+          <!-- Error Section -->
+          <div id="errorSection" class="error-section hidden">
+            <p id="errorMessage" class="error-message"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="container">
+        <h2 class="section-title">Features</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <h3>🎬 Quality Detection</h3>
+            <p>Automatically detect resolution, bitrate, and codec.</p>
+          </div>
+          <div class="feature-card">
+            <h3>📊 Quality Selection</h3>
+            <p>Choose your preferred streaming quality.</p>
+          </div>
+          <div class="feature-card">
+            <h3>⚡ Instant Playback</h3>
+            <p>Videos start immediately with native browser support.</p>
+          </div>
+          <div class="feature-card">
+            <h3>🎯 Seamless Seeking</h3>
+            <p>Full range request support for smooth scrubbing.</p>
+          </div>
+          <div class="feature-card">
+            <h3>📱 Easy Embedding</h3>
+            <p>Standard HTML5 video tags work everywhere.</p>
+          </div>
+          <div class="feature-card">
+            <h3>🔒 Secure Tokens</h3>
+            <p>Time-limited tokens for added security.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="how-it-works" id="how-it-works">
+      <div class="container">
+        <h2 class="section-title">How It Works</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <h3>Paste Link</h3>
+            <p>Enter your Drive URL</p>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <h3>Analyze</h3>
+            <p>We detect video quality</p>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <h3>Select Quality</h3>
+            <p>Choose your preference</p>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <h3>Stream</h3>
+            <p>Get your .mp4 URL</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2024 StreamFreely. Built with ❤️ for the open web.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
