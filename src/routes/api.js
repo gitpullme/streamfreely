@@ -118,8 +118,10 @@ router.post('/generate-link', async (req, res) => {
         const selectedQuality = quality || 'original';
         const token = tokenService.generateToken(fileId, selectedQuality);
 
-        // Build the streamable URL
-        const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+        // Build the streamable URL - auto-detect from request if BASE_URL not set
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+        const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname;
+        const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
         const streamUrl = `${baseUrl}/stream/${token}.mp4`;
 
         // Quick mode: minimal response for faster generation

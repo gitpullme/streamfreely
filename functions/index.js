@@ -196,7 +196,11 @@ app.post('/api/generate-link', async (req, res) => {
 
         const selectedQuality = quality || 'original';
         const token = generateToken(fileId, selectedQuality);
-        const baseUrl = `https://streamfreely-b119f.web.app`;
+
+        // Auto-detect base URL from request
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+        const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname;
+        const baseUrl = `${protocol}://${host}`;
         const streamUrl = `${baseUrl}/stream/${token}.mp4`;
 
         const qualityInfo = analyzeVideoQuality(fileInfo);
