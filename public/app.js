@@ -354,62 +354,31 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('universalEmbedCode').textContent = embedCode;
     }
 
-    // Setup universal video player with HLS.js support
+    // ==========================================
+    // ENHANCED HLS PLAYER
+    // Provides aggressive buffering and continuous fetching
+    // ==========================================
+
+    // Buffer monitoring interval
+    let bufferMonitorInterval = null;
+
+    // Setup universal video player with ENHANCED HLS.js support
     function setupUniversalPlayer(proxyUrl, streamType, originalUrl, directMode = false) {
-        // Cleanup previous HLS instance
+        // Cleanup previous instance
         if (hlsInstance) {
             hlsInstance.destroy();
             hlsInstance = null;
+        }
+        if (bufferMonitorInterval) {
+            clearInterval(bufferMonitorInterval);
+            bufferMonitorInterval = null;
         }
 
         // Show buffer indicator
         bufferIndicator.classList.remove('hidden');
 
         if (streamType === 'HLS') {
-            // Use HLS.js for m3u8 streams
-            if (typeof Hls !== 'undefined' && Hls.isSupported()) {
-                hlsInstance = new Hls({
-                    enableWorker: true,
-                    maxBufferLength: 60,
-                    maxMaxBufferLength: 120,
-                    maxBufferSize: 60 * 1000 * 1000, // 60MB
-                    maxBufferHole: 0.5,
-                    lowLatencyMode: false,
-                    backBufferLength: 90
-                });
-
-                hlsInstance.loadSource(proxyUrl);
-                hlsInstance.attachMedia(universalVideoPlayer);
-
-                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-                    bufferIndicator.classList.add('hidden');
-                    universalVideoPlayer.play().catch(() => { });
-                });
-
-                hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                        console.error('HLS fatal error:', data);
-                        // Try direct playback as fallback
-                        universalVideoPlayer.src = proxyUrl;
-                    }
-                });
-
-                // Buffer monitoring
-                hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
-                    document.getElementById('bufferStatus').textContent = 'Buffered';
-                });
-
-            } else if (universalVideoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
-                // Native HLS support (Safari)
-                universalVideoPlayer.src = proxyUrl;
-                universalVideoPlayer.addEventListener('loadedmetadata', () => {
-                    bufferIndicator.classList.add('hidden');
-                    universalVideoPlayer.play().catch(() => { });
-                });
-            } else {
-                // Fallback to direct URL
-                universalVideoPlayer.src = proxyUrl;
-            }
+            setupEnhancedHLSPlayer(proxyUrl, directMode);
         } else {
             // Direct playback for MP4, WebM, etc.
             universalVideoPlayer.src = proxyUrl;
@@ -418,20 +387,238 @@ document.addEventListener('DOMContentLoaded', () => {
             }, { once: true });
         }
 
-        // Buffer state monitoring
+        // Common event listeners
+        setupPlayerEventListeners();
+    }
+
+    // Setup Enhanced HLS Player with aggressive buffering
+    function setupEnhancedHLSPlayer(streamUrl, directMode) {
+        if (typeof Hls === 'undefined' || !Hls.isSupported()) {
+            // Fallback for Safari
+            if (universalVideoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                universalVideoPlayer.src = streamUrl;
+                universalVideoPlayer.addEventListener('loadedmetadata', () => {
+                    bufferIndicator.classList.add('hidden');
+                    universalVideoPlayer.play().catch(() => { });
+                });
+            }
+            return;
+        }
+
+        // AGGRESSIVE HLS.js Configuration for smooth, uninterrupted playback
+        const hlsConfig = {
+            // === Core Settings ===
+            enableWorker: true,
+            lowLatencyMode: false,  // Prioritize stability over latency
+
+            // === AGGRESSIVE BUFFER SETTINGS ===
+            maxBufferLength: 180,           // Buffer up to 3 minutes ahead
+            maxMaxBufferLength: 300,        // Allow up to 5 minutes in good conditions
+            maxBufferSize: 120 * 1000 * 1000, // 120MB buffer size
+            maxBufferHole: 0.5,             // Tolerate small gaps
+
+            // === BACK BUFFER (for seeking back) ===
+            backBufferLength: 150,          // Keep 2.5 minutes behind current position
+
+            // === LOADING SETTINGS ===
+            manifestLoadingTimeOut: 20000,  // 20s timeout for manifest
+            manifestLoadingMaxRetry: 6,     // Retry manifest 6 times
+            manifestLoadingRetryDelay: 1000,// 1s between retries
+
+            levelLoadingTimeOut: 20000,     // 20s timeout for level playlists
+            levelLoadingMaxRetry: 6,
+            levelLoadingRetryDelay: 1000,
+
+            fragLoadingTimeOut: 30000,      // 30s timeout for fragments
+            fragLoadingMaxRetry: 8,         // MORE retries for fragments
+            fragLoadingRetryDelay: 500,     // Start with 500ms delay
+
+            // === CONTINUOUS FETCHING ===
+            startFragPrefetch: true,        // Pre-fetch next fragment
+            testBandwidth: true,            // Measure bandwidth
+            progressive: true,              // Progressive loading
+
+            // === ABR (Adaptive Bitrate) Settings ===
+            abrEwmaDefaultEstimate: 5000000, // Start assuming 5 Mbps
+            abrBandWidthFactor: 0.8,         // Use 80% of measured bandwidth
+            abrBandWidthUpFactor: 0.7,       // Conservative quality upgrades
+            abrMaxWithRealBitrate: true,     // Use real bitrate for ABR
+
+            // === ERROR RECOVERY ===
+            appendErrorMaxRetry: 5,
+            enableSoftwareAES: true,        // Software decryption if needed
+        };
+
+        hlsInstance = new Hls(hlsConfig);
+        hlsInstance.loadSource(streamUrl);
+        hlsInstance.attachMedia(universalVideoPlayer);
+
+        // === EVENT HANDLERS ===
+
+        // Manifest loaded - start playback
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+            console.log('🎬 HLS Manifest parsed, quality levels:', data.levels.length);
+            bufferIndicator.classList.add('hidden');
+            universalVideoPlayer.play().catch(() => { });
+
+            // Start buffer monitoring
+            startBufferMonitoring();
+
+            // Update stats
+            updateStreamStats('Ready', data.levels.length);
+        });
+
+        // Fragment loaded - update buffer status
+        hlsInstance.on(Hls.Events.FRAG_LOADED, (event, data) => {
+            const fragDuration = data.frag.duration;
+            console.log(`📦 Fragment loaded: ${fragDuration.toFixed(1)}s`);
+        });
+
+        // Fragment buffered - continuous fetching working
+        hlsInstance.on(Hls.Events.FRAG_BUFFERED, (event, data) => {
+            updateBufferDisplay();
+        });
+
+        // Level switched - quality change
+        hlsInstance.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+            const level = hlsInstance.levels[data.level];
+            console.log(`📊 Quality switched: ${level.height}p @ ${(level.bitrate / 1000000).toFixed(1)} Mbps`);
+            document.getElementById('detectedType').textContent = `HLS ${level.height}p`;
+        });
+
+        // ERROR HANDLING with auto-recovery
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+            console.warn('⚠️ HLS Error:', data.type, data.details);
+
+            if (data.fatal) {
+                switch (data.type) {
+                    case Hls.ErrorTypes.NETWORK_ERROR:
+                        console.log('🔄 Network error, attempting recovery...');
+                        document.getElementById('bufferStatus').textContent = 'Recovering...';
+                        hlsInstance.startLoad(); // Retry loading
+                        break;
+                    case Hls.ErrorTypes.MEDIA_ERROR:
+                        console.log('🔄 Media error, attempting recovery...');
+                        document.getElementById('bufferStatus').textContent = 'Recovering...';
+                        hlsInstance.recoverMediaError();
+                        break;
+                    default:
+                        console.error('❌ Fatal error, cannot recover');
+                        document.getElementById('bufferStatus').textContent = 'Error';
+                        break;
+                }
+            } else {
+                // Non-fatal: HLS.js handles automatically with retries
+                document.getElementById('bufferStatus').textContent = 'Retrying...';
+            }
+        });
+    }
+
+    // Start real-time buffer monitoring
+    function startBufferMonitoring() {
+        if (bufferMonitorInterval) clearInterval(bufferMonitorInterval);
+
+        bufferMonitorInterval = setInterval(() => {
+            updateBufferDisplay();
+        }, 500); // Update every 500ms
+    }
+
+    // Update buffer display with real-time stats
+    function updateBufferDisplay() {
+        if (!universalVideoPlayer || !hlsInstance) return;
+
+        const video = universalVideoPlayer;
+        const buffered = video.buffered;
+
+        if (buffered.length > 0) {
+            const currentTime = video.currentTime;
+            const bufferedEnd = buffered.end(buffered.length - 1);
+            const bufferAhead = bufferedEnd - currentTime;
+
+            // Calculate buffer health (target: 60s = 100%)
+            const bufferHealth = Math.min(100, (bufferAhead / 60) * 100);
+
+            // Color based on health
+            let statusColor = '#22c55e'; // Green
+            let statusText = 'Excellent';
+            if (bufferHealth < 30) {
+                statusColor = '#ef4444'; // Red
+                statusText = 'Low';
+            } else if (bufferHealth < 60) {
+                statusColor = '#f59e0b'; // Orange
+                statusText = 'Fair';
+            } else if (bufferHealth < 80) {
+                statusColor = '#84cc16'; // Light green
+                statusText = 'Good';
+            }
+
+            const bufferStatusEl = document.getElementById('bufferStatus');
+            bufferStatusEl.textContent = `${bufferAhead.toFixed(1)}s (${statusText})`;
+            bufferStatusEl.style.color = statusColor;
+
+            // Log buffer stats periodically
+            if (Math.random() < 0.1) { // 10% chance to log
+                console.log(`📊 Buffer: ${bufferAhead.toFixed(1)}s ahead | Health: ${bufferHealth.toFixed(0)}%`);
+            }
+        }
+    }
+
+    // Update stream stats display
+    function updateStreamStats(status, qualityLevels = null) {
+        const bufferStatusEl = document.getElementById('bufferStatus');
+        bufferStatusEl.textContent = status;
+
+        if (qualityLevels) {
+            document.getElementById('detectedType').textContent = `HLS (${qualityLevels} qualities)`;
+        }
+    }
+
+    // Setup common player event listeners
+    function setupPlayerEventListeners() {
+        // Waiting (buffering)
         universalVideoPlayer.addEventListener('waiting', () => {
             bufferIndicator.classList.remove('hidden');
-            document.getElementById('bufferStatus').textContent = 'Buffering...';
+            if (!hlsInstance) {
+                document.getElementById('bufferStatus').textContent = 'Buffering...';
+            }
         });
 
+        // Playing
         universalVideoPlayer.addEventListener('playing', () => {
             bufferIndicator.classList.add('hidden');
-            document.getElementById('bufferStatus').textContent = 'Playing';
         });
 
+        // Paused - continue fetching in background
+        universalVideoPlayer.addEventListener('pause', () => {
+            if (hlsInstance) {
+                console.log('⏸️ Paused - continuing background fetch');
+                // HLS.js continues fetching by default, just log it
+            }
+        });
+
+        // Seeking
+        universalVideoPlayer.addEventListener('seeking', () => {
+            document.getElementById('bufferStatus').textContent = 'Seeking...';
+        });
+
+        // Seeked
+        universalVideoPlayer.addEventListener('seeked', () => {
+            updateBufferDisplay();
+        });
+
+        // Error
         universalVideoPlayer.addEventListener('error', (e) => {
             bufferIndicator.classList.add('hidden');
             console.error('Video error:', e);
+            document.getElementById('bufferStatus').textContent = 'Error';
+        });
+
+        // Ended
+        universalVideoPlayer.addEventListener('ended', () => {
+            if (bufferMonitorInterval) {
+                clearInterval(bufferMonitorInterval);
+            }
+            document.getElementById('bufferStatus').textContent = 'Ended';
         });
     }
 

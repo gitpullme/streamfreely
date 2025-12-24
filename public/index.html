@@ -180,29 +180,34 @@
               </div>
 
               <div class="stream-options">
+                <h4 class="options-title">⚙️ Playback Settings</h4>
+
+                <div class="option-group">
+                  <label class="option-label">
+                    <input type="checkbox" id="directMode" checked>
+                    <span class="checkmark"></span>
+                    <span>🚀 Enhanced Direct Player</span>
+                  </label>
+                  <span class="option-hint">Recommended for most streams - bypasses proxy, uses aggressive
+                    buffering</span>
+                </div>
+
                 <div class="option-group">
                   <label class="option-label">
                     <input type="checkbox" id="enableBuffer" checked>
                     <span class="checkmark"></span>
-                    <span>Enhanced Buffering</span>
+                    <span>📦 Aggressive Buffering (3 min ahead)</span>
                   </label>
-                  <span class="option-hint">Pre-fetch segments for smoother playback</span>
+                  <span class="option-hint">Pre-fetch up to 180s ahead for uninterrupted playback</span>
                 </div>
-                <div class="option-group">
+
+                <div class="option-group proxy-option">
                   <label class="option-label">
-                    <input type="checkbox" id="enableProxy" checked>
+                    <input type="checkbox" id="enableProxy">
                     <span class="checkmark"></span>
-                    <span>Proxy Streaming</span>
+                    <span>🔄 Server Proxy (CORS bypass)</span>
                   </label>
-                  <span class="option-hint">Route through our servers for stability</span>
-                </div>
-                <div class="option-group">
-                  <label class="option-label direct-mode">
-                    <input type="checkbox" id="directMode">
-                    <span class="checkmark"></span>
-                    <span>🔓 Direct Mode (Bypass Proxy)</span>
-                  </label>
-                  <span class="option-hint">⚠️ Use for Cloudflare-protected sites - plays directly in browser</span>
+                  <span class="option-hint">⚠️ May be blocked by Cloudflare - only for non-protected sites</span>
                 </div>
               </div>
 

@@ -1149,3 +1149,25 @@ body {
   color: #fbbf24;
   opacity: 0.8;
 }
+
+/* Options Title */
+.options-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Proxy Option Warning Style */
+.option-group.proxy-option {
+  padding-top: var(--space-sm);
+  margin-top: var(--space-sm);
+  border-top: 1px dashed rgba(239, 68, 68, 0.3);
+  opacity: 0.7;
+}
+
+.option-group.proxy-option .option-hint {
+  color: #f87171;
+}
