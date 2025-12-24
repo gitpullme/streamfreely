@@ -405,44 +405,59 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // AGGRESSIVE HLS.js Configuration for smooth, uninterrupted playback
+        // === START FAST, BUFFER LATER ===
+        // This configuration prioritizes INSTANT playback start,
+        // then aggressively buffers in the background while playing
         const hlsConfig = {
             // === Core Settings ===
             enableWorker: true,
             lowLatencyMode: false,  // Prioritize stability over latency
 
-            // === AGGRESSIVE BUFFER SETTINGS ===
-            maxBufferLength: 180,           // Buffer up to 3 minutes ahead
-            maxMaxBufferLength: 300,        // Allow up to 5 minutes in good conditions
-            maxBufferSize: 120 * 1000 * 1000, // 120MB buffer size
+            // === INSTANT START SETTINGS ===
+            startLevel: -1,                 // Auto-select quality (fastest start)
+            autoStartLoad: true,            // Start loading immediately
+            startPosition: -1,              // Start from live edge / beginning
+
+            // === SMART BUFFER STRATEGY ===
+            // Start with small buffer for instant play, then grow
+            maxBufferLength: 30,            // Initial target: 30s (fast start)
+            maxMaxBufferLength: 600,        // But ALLOW growth up to 10 minutes!
+            maxBufferSize: 200 * 1000 * 1000, // 200MB max buffer size
             maxBufferHole: 0.5,             // Tolerate small gaps
 
             // === BACK BUFFER (for seeking back) ===
-            backBufferLength: 150,          // Keep 2.5 minutes behind current position
+            backBufferLength: 180,          // Keep 3 minutes behind current position
+            liveBackBufferLength: 180,      // Same for live streams
 
-            // === LOADING SETTINGS ===
-            manifestLoadingTimeOut: 20000,  // 20s timeout for manifest
-            manifestLoadingMaxRetry: 6,     // Retry manifest 6 times
-            manifestLoadingRetryDelay: 1000,// 1s between retries
+            // === FAST INITIAL LOADING ===
+            manifestLoadingTimeOut: 10000,  // 10s timeout (faster fail)
+            manifestLoadingMaxRetry: 4,     // Retry manifest 4 times
+            manifestLoadingRetryDelay: 500, // 500ms between retries (faster)
 
-            levelLoadingTimeOut: 20000,     // 20s timeout for level playlists
-            levelLoadingMaxRetry: 6,
-            levelLoadingRetryDelay: 1000,
+            levelLoadingTimeOut: 10000,     // 10s timeout
+            levelLoadingMaxRetry: 4,
+            levelLoadingRetryDelay: 500,
 
-            fragLoadingTimeOut: 30000,      // 30s timeout for fragments
-            fragLoadingMaxRetry: 8,         // MORE retries for fragments
-            fragLoadingRetryDelay: 500,     // Start with 500ms delay
+            fragLoadingTimeOut: 20000,      // 20s timeout for fragments
+            fragLoadingMaxRetry: 6,         // Retry fragments
+            fragLoadingRetryDelay: 500,     // 500ms delay
 
-            // === CONTINUOUS FETCHING ===
-            startFragPrefetch: true,        // Pre-fetch next fragment
+            // === CONTINUOUS AGGRESSIVE FETCHING ===
+            startFragPrefetch: true,        // Pre-fetch next fragment ASAP
             testBandwidth: true,            // Measure bandwidth
             progressive: true,              // Progressive loading
 
-            // === ABR (Adaptive Bitrate) Settings ===
-            abrEwmaDefaultEstimate: 5000000, // Start assuming 5 Mbps
-            abrBandWidthFactor: 0.8,         // Use 80% of measured bandwidth
+            // === ABR (Adaptive Bitrate) - Start Low, Go High ===
+            startLevel: 0,                  // Start with LOWEST quality (instant start)
+            abrEwmaDefaultEstimate: 1000000, // Start assuming 1 Mbps (conservative)
+            abrBandWidthFactor: 0.9,         // Use 90% of measured bandwidth
             abrBandWidthUpFactor: 0.7,       // Conservative quality upgrades
             abrMaxWithRealBitrate: true,     // Use real bitrate for ABR
+
+            // === PLAYBACK SETTINGS ===
+            nudgeOffset: 0.1,               // Small nudge for stuck playback
+            nudgeMaxRetry: 5,               // Retry nudges
+            maxFragLookUpTolerance: 0.25,   // Fragment lookup tolerance
 
             // === ERROR RECOVERY ===
             appendErrorMaxRetry: 5,
@@ -455,17 +470,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // === EVENT HANDLERS ===
 
-        // Manifest loaded - start playback
+        // Manifest loaded - start playback IMMEDIATELY
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
             console.log('🎬 HLS Manifest parsed, quality levels:', data.levels.length);
             bufferIndicator.classList.add('hidden');
+
+            // Start playback immediately
             universalVideoPlayer.play().catch(() => { });
 
             // Start buffer monitoring
             startBufferMonitoring();
 
             // Update stats
-            updateStreamStats('Ready', data.levels.length);
+            updateStreamStats('Starting...', data.levels.length);
+
+            // === BUFFER GROWTH: Start Fast, Then Ramp Up ===
+            // After playback starts, gradually increase buffer target
+            setTimeout(() => {
+                if (hlsInstance) {
+                    console.log('📈 Ramping up buffer target to 60s');
+                    hlsInstance.config.maxBufferLength = 60;
+                }
+            }, 5000); // After 5 seconds
+
+            setTimeout(() => {
+                if (hlsInstance) {
+                    console.log('📈 Ramping up buffer target to 120s');
+                    hlsInstance.config.maxBufferLength = 120;
+                }
+            }, 15000); // After 15 seconds
+
+            setTimeout(() => {
+                if (hlsInstance) {
+                    console.log('📈 Maximum buffer mode: 180s');
+                    hlsInstance.config.maxBufferLength = 180;
+                }
+            }, 30000); // After 30 seconds
         });
 
         // Fragment loaded - update buffer status
