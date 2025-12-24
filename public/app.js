@@ -5,6 +5,59 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
+    // SERVICE WORKER REGISTRATION
+    // For aggressive stream pre-caching
+    // ==========================================
+    let swReady = false;
+
+    // Update SW cache status indicator
+    function updateSWStatus(status, color = null) {
+        const el = document.getElementById('swCacheStatus');
+        if (el) {
+            el.textContent = status;
+            if (color) el.style.color = color;
+        }
+    }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw-stream.js')
+            .then(registration => {
+                console.log('🚀 StreamFreely SW registered:', registration.scope);
+                swReady = true;
+                updateSWStatus('Ready', '#22c55e');
+
+                // Listen for SW updates
+                registration.addEventListener('updatefound', () => {
+                    console.log('🔄 New SW version available');
+                });
+            })
+            .catch(error => {
+                console.warn('SW registration failed:', error);
+                updateSWStatus('Unavailable', '#f87171');
+            });
+    } else {
+        updateSWStatus('Not Supported', '#f87171');
+    }
+
+    // Function to tell SW to prefetch a stream
+    function requestPrefetch(streamUrl) {
+        if (swReady && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'PREFETCH_STREAM',
+                data: { url: streamUrl }
+            });
+            console.log('📡 Requested SW to prefetch:', streamUrl);
+            updateSWStatus('Pre-fetching...', '#fbbf24');
+
+            // Update status after some time
+            setTimeout(() => {
+                updateSWStatus('Caching Active', '#22c55e');
+            }, 3000);
+        } else {
+            updateSWStatus('Unavailable', '#f87171');
+        }
+    }
+    // ==========================================
     // DOM Elements - Google Drive Module
     // ==========================================
     const analyzeForm = document.getElementById('analyzeForm');
@@ -505,9 +558,13 @@ document.addEventListener('DOMContentLoaded', () => {
             universalVideoPlayer.addEventListener('loadedmetadata', () => {
                 console.log('✅ Native playback working!');
                 bufferIndicator.classList.add('hidden');
-                document.getElementById('bufferStatus').textContent = 'Native playback';
+                document.getElementById('bufferStatus').textContent = 'Native + SW Caching';
                 universalVideoPlayer.play().catch(() => { });
                 startBufferMonitoring();
+
+                // 🚀 AGGRESSIVE MODE: Tell Service Worker to pre-fetch segments!
+                requestPrefetch(streamUrl);
+                console.log('📡 SW will pre-cache segments in background');
             }, { once: true });
 
             universalVideoPlayer.addEventListener('error', (e) => {
