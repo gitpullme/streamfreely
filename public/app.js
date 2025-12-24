@@ -413,6 +413,18 @@ document.addEventListener('DOMContentLoaded', () => {
             enableWorker: true,
             lowLatencyMode: false,  // Prioritize stability over latency
 
+            // === REQUEST CONFIGURATION ===
+            // Add proper headers to avoid 403 errors
+            xhrSetup: function (xhr, url) {
+                // Set headers that might help with restrictive servers
+                try {
+                    // Note: Some headers can't be set due to browser security
+                    xhr.withCredentials = false; // Don't send cookies cross-origin
+                } catch (e) {
+                    console.warn('Could not configure XHR:', e);
+                }
+            },
+
             // === INSTANT START SETTINGS ===
             startLevel: -1,                 // Auto-select quality (fastest start)
             autoStartLoad: true,            // Start loading immediately
@@ -431,15 +443,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // === FAST INITIAL LOADING ===
             manifestLoadingTimeOut: 10000,  // 10s timeout (faster fail)
-            manifestLoadingMaxRetry: 4,     // Retry manifest 4 times
+            manifestLoadingMaxRetry: 2,     // Only retry 2 times before fallback
             manifestLoadingRetryDelay: 500, // 500ms between retries (faster)
 
             levelLoadingTimeOut: 10000,     // 10s timeout
-            levelLoadingMaxRetry: 4,
+            levelLoadingMaxRetry: 2,
             levelLoadingRetryDelay: 500,
 
             fragLoadingTimeOut: 20000,      // 20s timeout for fragments
-            fragLoadingMaxRetry: 6,         // Retry fragments
+            fragLoadingMaxRetry: 4,         // Retry fragments
             fragLoadingRetryDelay: 500,     // 500ms delay
 
             // === CONTINUOUS AGGRESSIVE FETCHING ===
@@ -464,9 +476,62 @@ document.addEventListener('DOMContentLoaded', () => {
             enableSoftwareAES: true,        // Software decryption if needed
         };
 
+        // Track if we've already tried fallback
+        let fallbackAttempted = false;
+
         hlsInstance = new Hls(hlsConfig);
         hlsInstance.loadSource(streamUrl);
         hlsInstance.attachMedia(universalVideoPlayer);
+
+        // === SMART FALLBACK FUNCTION ===
+        // If HLS.js fails (403, CORS, etc.), try native playback
+        function tryNativeFallback() {
+            if (fallbackAttempted) return;
+            fallbackAttempted = true;
+
+            console.log('🔄 HLS.js failed, trying native video playback...');
+            document.getElementById('bufferStatus').textContent = 'Trying native...';
+
+            // Destroy HLS instance
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
+
+            // Try native video element playback
+            // This works in Safari, iOS, and some other browsers
+            universalVideoPlayer.src = streamUrl;
+
+            universalVideoPlayer.addEventListener('loadedmetadata', () => {
+                console.log('✅ Native playback working!');
+                bufferIndicator.classList.add('hidden');
+                document.getElementById('bufferStatus').textContent = 'Native playback';
+                universalVideoPlayer.play().catch(() => { });
+                startBufferMonitoring();
+            }, { once: true });
+
+            universalVideoPlayer.addEventListener('error', (e) => {
+                console.error('❌ Native playback also failed:', e);
+                document.getElementById('bufferStatus').textContent = 'Failed - Try Open in Tab';
+                showOpenInTabOption(streamUrl);
+            }, { once: true });
+
+            universalVideoPlayer.load();
+        }
+
+        // Show "Open in New Tab" option as last resort
+        function showOpenInTabOption(url) {
+            const statsSection = document.querySelector('.stream-stats');
+            if (statsSection && !document.getElementById('openInTabBtn')) {
+                const btn = document.createElement('button');
+                btn.id = 'openInTabBtn';
+                btn.className = 'btn-secondary';
+                btn.innerHTML = '🔗 Open Stream in New Tab';
+                btn.style.marginTop = '1rem';
+                btn.onclick = () => window.open(url, '_blank');
+                statsSection.appendChild(btn);
+            }
+        }
 
         // === EVENT HANDLERS ===
 
@@ -526,16 +591,33 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('detectedType').textContent = `HLS ${level.height}p`;
         });
 
-        // ERROR HANDLING with auto-recovery
+        // ERROR HANDLING with auto-recovery and smart fallback
         hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-            console.warn('⚠️ HLS Error:', data.type, data.details);
+            console.warn('⚠️ HLS Error:', data.type, data.details, data.response?.code);
+
+            // Check if it's a 403 or manifest load error - fallback immediately
+            if (data.details === 'manifestLoadError' ||
+                data.details === 'manifestParsingError' ||
+                data.response?.code === 403 ||
+                data.response?.code === 404 ||
+                data.response?.code === 0) { // CORS error often shows as 0
+                console.log('🔄 Manifest error (likely CORS/403), trying native fallback...');
+                tryNativeFallback();
+                return;
+            }
 
             if (data.fatal) {
                 switch (data.type) {
                     case Hls.ErrorTypes.NETWORK_ERROR:
-                        console.log('🔄 Network error, attempting recovery...');
-                        document.getElementById('bufferStatus').textContent = 'Recovering...';
-                        hlsInstance.startLoad(); // Retry loading
+                        // Check if it's been retrying too long
+                        if (data.details.includes('manifest') || data.details.includes('level')) {
+                            console.log('🔄 Network error on manifest/level, trying fallback...');
+                            tryNativeFallback();
+                        } else {
+                            console.log('🔄 Network error, attempting recovery...');
+                            document.getElementById('bufferStatus').textContent = 'Recovering...';
+                            hlsInstance.startLoad(); // Retry loading
+                        }
                         break;
                     case Hls.ErrorTypes.MEDIA_ERROR:
                         console.log('🔄 Media error, attempting recovery...');
@@ -543,8 +625,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         hlsInstance.recoverMediaError();
                         break;
                     default:
-                        console.error('❌ Fatal error, cannot recover');
-                        document.getElementById('bufferStatus').textContent = 'Error';
+                        console.error('❌ Fatal error, trying fallback...');
+                        tryNativeFallback();
                         break;
                 }
             } else {
