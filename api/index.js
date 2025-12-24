@@ -178,11 +178,12 @@ app.post('/api/generate-link', async (req, res) => {
 });
 
 /**
- * GET /api/stream/:token.mp4 - Stream video
+ * GET /api/stream/* - Stream video (handles tokens with dots)
  */
-app.get('/api/stream/:token', async (req, res) => {
+app.get('/api/stream/*', async (req, res) => {
     try {
-        let { token } = req.params;
+        // Get the full path after /api/stream/
+        let token = req.params[0] || '';
 
         // Remove .mp4 extension if present
         token = token.replace(/\.mp4$/i, '');
@@ -254,11 +255,11 @@ app.get('/api/stream/:token', async (req, res) => {
 });
 
 /**
- * HEAD /api/stream/:token.mp4 - Handle HEAD requests for video
+ * HEAD /api/stream/* - Handle HEAD requests for video
  */
-app.head('/api/stream/:token', async (req, res) => {
+app.head('/api/stream/*', async (req, res) => {
     try {
-        let { token } = req.params;
+        let token = req.params[0] || '';
         token = token.replace(/\.mp4$/i, '');
 
         const tokenData = tokenService.decodeToken(token);
