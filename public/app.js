@@ -794,11 +794,40 @@ document.addEventListener('DOMContentLoaded', () => {
             updateBufferDisplay();
         });
 
-        // Error
+        // Error - with detailed logging
         universalVideoPlayer.addEventListener('error', (e) => {
             bufferIndicator.classList.add('hidden');
-            console.error('Video error:', e);
-            document.getElementById('bufferStatus').textContent = 'Error';
+
+            // Get detailed error info
+            const video = e.target;
+            const error = video.error;
+            let errorMessage = 'Unknown error';
+
+            if (error) {
+                switch (error.code) {
+                    case MediaError.MEDIA_ERR_ABORTED:
+                        errorMessage = 'Playback aborted';
+                        break;
+                    case MediaError.MEDIA_ERR_NETWORK:
+                        errorMessage = 'Network error - check if stream URL is accessible';
+                        break;
+                    case MediaError.MEDIA_ERR_DECODE:
+                        errorMessage = 'Decode error - stream format not supported';
+                        break;
+                    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                        errorMessage = 'Source not supported - URL may be invalid or blocked';
+                        break;
+                }
+                console.error('Video error details:', {
+                    code: error.code,
+                    message: error.message || errorMessage,
+                    src: video.src?.substring(0, 100) + '...'
+                });
+            } else {
+                console.error('Video error (no details):', e);
+            }
+
+            document.getElementById('bufferStatus').textContent = errorMessage;
         });
 
         // Ended
