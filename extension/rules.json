@@ -1,0 +1,70 @@
+[
+    {
+        "id": 1,
+        "priority": 1,
+        "action": {
+            "type": "modifyHeaders",
+            "responseHeaders": [
+                {
+                    "header": "Access-Control-Allow-Origin",
+                    "operation": "set",
+                    "value": "*"
+                },
+                {
+                    "header": "Access-Control-Allow-Methods",
+                    "operation": "set",
+                    "value": "GET, HEAD, OPTIONS"
+                },
+                {
+                    "header": "Access-Control-Allow-Headers",
+                    "operation": "set",
+                    "value": "*"
+                },
+                {
+                    "header": "Access-Control-Expose-Headers",
+                    "operation": "set",
+                    "value": "*"
+                }
+            ]
+        },
+        "condition": {
+            "regexFilter": ".*\\.(m3u8|ts|m4s|mp4|mpd|key).*",
+            "resourceTypes": [
+                "xmlhttprequest",
+                "media",
+                "other"
+            ]
+        }
+    },
+    {
+        "id": 2,
+        "priority": 2,
+        "action": {
+            "type": "modifyHeaders",
+            "requestHeaders": [
+                {
+                    "header": "Origin",
+                    "operation": "remove"
+                },
+                {
+                    "header": "Sec-Fetch-Mode",
+                    "operation": "set",
+                    "value": "no-cors"
+                },
+                {
+                    "header": "Sec-Fetch-Site",
+                    "operation": "set",
+                    "value": "none"
+                }
+            ]
+        },
+        "condition": {
+            "regexFilter": ".*\\.(m3u8|ts|m4s|mp4|mpd|key).*",
+            "resourceTypes": [
+                "xmlhttprequest",
+                "media",
+                "other"
+            ]
+        }
+    }
+]

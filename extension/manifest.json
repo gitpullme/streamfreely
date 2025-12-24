@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "name": "StreamFreely Helper",
+    "version": "1.0.0",
+    "description": "Enables aggressive HLS playback by fixing request headers for streaming sites",
+    "permissions": [
+        "declarativeNetRequest",
+        "declarativeNetRequestWithHostAccess",
+        "storage"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "StreamFreely Helper"
+    },
+    "declarative_net_request": {
+        "rule_resources": [
+            {
+                "id": "ruleset_1",
+                "enabled": true,
+                "path": "rules.json"
+            }
+        ]
+    }
+}
